@@ -1,23 +1,38 @@
 package com.hmdp.utils;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 @Component
 public class RedisIdWorker {
 
-    public long nextId(String keyPrefix){
-        // 1.生成时间戳
+    /**
+     * 初始时间2023.01.01,00:00:00
+     */
+    private static final long BEGIN_TIMESTAMP = 1672531200;
+    private static final int COUNT_BITS = 32;// 位移位数
 
-        // 2.生成序列号
+    private StringRedisTemplate stringRedisTemplate;
 
-        // 3.拼接并返回
-        return 0l;
+    public RedisIdWorker(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    public static void main(String[] args) {
-        LocalDateTime time = LocalDateTime.of(2023, 1, 1, 0, 0, 0);
-        System.out.println("time = " + time);
+    public long nextId(String keyPrefix){
+        // 1.生成时间戳
+        LocalDateTime now = LocalDateTime.now();
+        long nowSecond = now.toEpochSecond(ZoneOffset.UTC);
+        long timeStamp = nowSecond - BEGIN_TIMESTAMP;
+        // 2.生成序列号
+        // 2.1获取当前日期,精确到天
+        String date = now.format(DateTimeFormatter.ofPattern("yyyy:MM:dd"));
+        // 2.2自增长
+        long count = stringRedisTemplate.opsForValue().increment("icr:" + keyPrefix + ":" + date);
+        // 3.拼接并返回
+        return timeStamp << COUNT_BITS | count;//将时间戳向左位移,在与count进行或运算
     }
 }
