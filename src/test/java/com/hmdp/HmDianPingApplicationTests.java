@@ -1,5 +1,9 @@
 package com.hmdp;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.lang.UUID;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Shop;
 import com.hmdp.service.impl.ShopServiceImpl;
 import com.hmdp.utils.CacheClient;
@@ -8,15 +12,19 @@ import com.hmdp.utils.RedisIdWorker;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import javax.annotation.Resource;
 
+import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
+import static com.hmdp.utils.RedisConstants.*;
 
 @SpringBootTest
 class HmDianPingApplicationTests {
@@ -29,6 +37,9 @@ class HmDianPingApplicationTests {
 
     @Autowired
     private RedisIdWorker redisIdWorker;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     // 线程池
     private ExecutorService es = Executors.newFixedThreadPool(500);
@@ -44,7 +55,7 @@ class HmDianPingApplicationTests {
         };
         long begin = System.currentTimeMillis();
         for(int i = 0; i < 300; i++){
-            es.submit(task);    //将任务执行300次
+            es.execute(task);    //将任务执行300次
         }
         latch.await();
         long end = System.currentTimeMillis();
@@ -59,11 +70,31 @@ class HmDianPingApplicationTests {
     }
 
     @Test
-    void testString(){
-        String str = "qwertyuiopq";
-        System.out.println("str = " + str.indexOf("q"));
-        System.out.println("str = " + str.charAt(2));
-        System.out.println("str = " + str.replace("qwe", "asd"));
-        System.out.println("str = " + str.toUpperCase());
+    void testAddRedisToken(){
+        String filePath = "D:\\学习资源\\IT资源\\JAVA_黑马程序员\\Redis\\02-实战篇\\资料\\tokens.txt";
+        int tokenNum = 1000;
+        try {
+            StringBuilder sb = new StringBuilder();
+            FileWriter fout = new FileWriter(filePath);
+            BufferedWriter bufferedWriter = new BufferedWriter(fout);
+            for(int i = 0; i < tokenNum; i++){
+                UserDTO userDTO = new UserDTO();
+                userDTO.setIcon("");
+                userDTO.setId(i + 1000l);
+                userDTO.setNickName("user" + (i + 1000));
+                Map<String, Object> userMap = BeanUtil.beanToMap(userDTO, new HashMap<>(),
+                        CopyOptions.create()
+                                .setIgnoreNullValue(true)
+                                .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString()));
+                String token = UUID.randomUUID().toString(true);
+                String tokenKey = LOGIN_USER_KEY + token;
+                stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
+                stringRedisTemplate.expire(tokenKey, 3l, TimeUnit.MINUTES);
+                bufferedWriter.write(token + "\n");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        String token = UUID.randomUUID().toString(true);
     }
 }
